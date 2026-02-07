@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+celery
+redis
+python-multipart
+# Image Processing
+numpy
+opencv-python-headless
+Pillow
+scikit-learn
+potrace
+torch
+torchvision
+realesrgan
+scikit-learn
+scikit-image
+
