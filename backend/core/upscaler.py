@@ -3,26 +3,55 @@ import numpy as np
 import os
 from PIL import Image
 from basicsr.archs.rrdbnet_arch import RRDBNet
-from realesrgan import RealESRGANer
+try:
+    from realesrgan import RealESRGANer
+    HAS_REALESRGAN = True
+except ImportError:
+    RealESRGANer = None
+    HAS_REALESRGAN = False
+    print("RealESRGAN not found. Upscaling will be disabled.")
+
 import torch
+
+# Default Real-ESRGAN model URL (official release)
+DEFAULT_MODEL_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
 
 class Upscaler:
     def __init__(self, model_path: str = None):
-        # Default to x4plus model logic
+        self.enabled = HAS_REALESRGAN
+        self.upsampler = None
+        
+        if not self.enabled:
+            print("[Upscaler] RealESRGAN not available. Upscaling disabled.")
+            return
+        
+        # 1. GRACEFUL FALLBACK: If model_path is None or empty, use default URL
+        if not model_path:
+            model_path = DEFAULT_MODEL_URL
+            print(f"[Upscaler] No model_path provided. Using default: {model_path}")
+        
+        # 2. DEVICE SETUP
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f"[Upscaler] Using device: {self.device}")
+        
         self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-        # Note: In a real deploy, weights should be downloaded/cached. 
-        # For MVP, we presume weights are present or RealESRGANer handles download.
-        self.upsampler = RealESRGANer(
-            scale=4,
-            model_path=model_path,
-            model=self.model,
-            tile=0, # 0 for no tile padding
-            tile_pad=10,
-            pre_pad=0,
-            half=True if self.device.type == 'cuda' else False,
-            device=self.device,
-        )
+        
+        # 3. FAIL-SAFE INITIALIZATION (Backend Specialist Rule)
+        try:
+            self.upsampler = RealESRGANer(
+                scale=4,
+                model_path=model_path,
+                model=self.model,
+                tile=400,  # Process in 400x400 tiles to prevent OOM on large images
+                tile_pad=10,
+                pre_pad=0,
+                half=True if self.device.type == 'cuda' else False,
+                device=self.device,
+            )
+            print("[Upscaler] RealESRGANer initialized successfully.")
+        except Exception as e:
+            print(f"[Upscaler] CRITICAL: Failed to initialize RealESRGANer: {e}")
+            self.enabled = False  # Graceful degradation
 
     def process(self, image_path: str, output_path: str) -> str:
         """
@@ -45,6 +74,10 @@ class Upscaler:
             img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
             if img is None:
                 raise ValueError(f"Could not read image: {image_path}")
+
+            if not self.enabled:
+                print("Upscaling disabled. Returning original image.")
+                return image_path
 
             output, _ = self.upsampler.enhance(img, outscale=4)
             

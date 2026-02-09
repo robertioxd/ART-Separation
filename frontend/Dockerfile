@@ -1,14 +1,22 @@
-# Frontend Dockerfile
-FROM node:18-alpine
+# Frontend Dockerfile (Vite)
+FROM node:22-alpine
 
 WORKDIR /app
 
-COPY frontend/package*.json ./
+# Copy package.json and lock file
+COPY package*.json ./
 
+# Install dependencies
 RUN npm install
 
-COPY frontend/ .
+# Copy source code
+COPY . .
 
-EXPOSE 3000
+# Build for production (optional, or just dev)
+# RUN npm run build
 
-CMD ["npm", "start"]
+# Expose Vite port
+EXPOSE 5173
+
+# Start Vite dev server with host exposure
+CMD ["npx", "vite", "--host"]

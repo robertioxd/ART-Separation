@@ -2,7 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api.jobs import router as jobs_router
 
+from fastapi.staticfiles import StaticFiles
+import os
+
 app = FastAPI(title="ChromaScreen AI")
+
+# Ensure temp dir exists
+if not os.path.exists("./temp_jobs"):
+    os.makedirs("./temp_jobs")
+
+app.mount("/files", StaticFiles(directory="./temp_jobs"), name="files")
 
 app.add_middleware(
     CORSMiddleware,
